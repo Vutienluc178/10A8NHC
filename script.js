@@ -4,10 +4,11 @@ let academicChart, attendanceChart, distributionChart, disciplineChart;
 
 // --- KHỞI TẠO KHI TẢI TRANG ---
 document.addEventListener('DOMContentLoaded', function() {
-    loadStudentsFromStorage(); // Tải dữ liệu từ localStorage
+    loadStudentsFromStorage();
     initializeReports();
     initializeStudentForm();
-    renderStudentList(); // Hiển thị danh sách học sinh ban đầu
+    initializeExcelImporter(); // <-- DÒNG MỚI
+    renderStudentList();
     setDefaultDates();
 });
 
@@ -64,7 +65,73 @@ function initializeStudentForm() {
         showSuccessToast('Đã thêm học sinh thành công!');
     });
 }
+// MỚI: Xử lý chức năng nhập từ file Excel
+function initializeExcelImporter() {
+    const fileInput = document.getElementById('excel-input');
+    fileInput.addEventListener('change', function(event) {
+        const file = event.target.files[0];
+        if (!file) {
+            return;
+        }
 
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const data = new Uint8Array(e.target.result);
+                // Đọc file Excel, tùy chọn cellDates: true để xử lý đúng định dạng ngày tháng
+                const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+
+                // Chuyển đổi sheet thành dạng JSON
+                const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+                if (jsonData.length === 0) {
+                    showSuccessToast('File Excel trống hoặc không đúng định dạng.', true);
+                    return;
+                }
+
+                let importedCount = 0;
+                jsonData.forEach((row, index) => {
+                    // Kiểm tra nếu có cột "Họ và tên" thì mới xử lý
+                    if (row['Họ và tên']) {
+                        const newStudent = {
+                            id: Date.now() + index, // Tạo ID duy nhất
+                            studentId: row['Mã học sinh'] || `N/A_${index}`,
+                            name: row['Họ và tên'],
+                            dob: row['Ngày sinh'] ? new Date(row['Ngày sinh']).toISOString().split('T')[0] : '',
+                            gender: row['Giới tính'] || 'Khác',
+                            parentName: row['Tên phụ huynh'] || '',
+                            parentPhone: row['SĐT Phụ huynh'] || '',
+                            // Dữ liệu mặc định
+                            grades: { math: [], literature: [], english: [], physics: [], chemistry: [] },
+                            disciplineScore: 10.0,
+                            attendanceStats: { present: 0, absent: 0, late: 0, excused: 0, rate: 100 },
+                            communicationStats: { sent: 0, received: 0, responseRate: 0, lastContact: '' }
+                        };
+                        studentsData.push(newStudent);
+                        importedCount++;
+                    }
+                });
+
+                if (importedCount > 0) {
+                    saveStudentsToStorage();
+                    refreshAllData();
+                    showSuccessToast(`Đã nhập thành công ${importedCount} học sinh!`);
+                } else {
+                    showSuccessToast('Không tìm thấy dữ liệu hợp lệ trong file.', true);
+                }
+            } catch (error) {
+                console.error("Lỗi khi đọc file Excel:", error);
+                showSuccessToast('Có lỗi xảy ra, vui lòng kiểm tra lại file.', true);
+            } finally {
+                // Reset input để có thể chọn lại cùng một file
+                fileInput.value = '';
+            }
+        };
+        reader.readAsArrayBuffer(file);
+    });
+}
 function renderStudentList() {
     const container = document.getElementById('student-list-container');
     const countEl = document.getElementById('student-count');
@@ -258,12 +325,22 @@ function showTab(tabName, event) {
     clickedButton.classList.remove('text-gray-600', 'hover:text-blue-600');
 }
 
-// Thông báo thành công
-function showSuccessToast(message) {
+// Cập nhật hàm này
+function showSuccessToast(message, isError = false) {
     const toast = document.getElementById('successToast');
     const messageElement = document.getElementById('successMessage');
+
+    // Thay đổi màu nền tùy theo loại thông báo
+    toast.classList.remove('bg-green-500', 'bg-red-500');
+    if (isError) {
+        toast.classList.add('bg-red-500');
+    } else {
+        toast.classList.add('bg-green-500');
+    }
+
     messageElement.textContent = message;
     toast.classList.remove('hidden');
+
     setTimeout(() => {
         toast.classList.add('hidden');
     }, 3000);
@@ -331,3 +408,4 @@ function loadIndividualReport() {
 function getGradeClassification(average) { if (average >= 9) return 'Xuất sắc'; if (average >= 8) return 'Giỏi'; if (average >= 6.5) return 'Khá'; if (average >= 5) return 'Trung bình'; return 'Yếu'; }
 function createActionPlan(studentId, issueType) { showSuccessToast(`Đã tạo kế hoạch hành động cho vấn đề: ${issueType}`); }
 function updateReportData() { loadReportData(); showSuccessToast('Đã cập nhật dữ liệu báo cáo!'); }
+
