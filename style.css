@@ -142,3 +142,60 @@ body {
 .student-list-item .student-actions button:hover {
     color: #ef4444; /* Màu đỏ cho nút xóa */
 }
+/* MỚI: Style cho lịch sử nề nếp */
+.discipline-log-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px;
+    border-radius: 8px;
+}
+
+.discipline-log-item.violation {
+    background-color: #fee2e2; /* Nền đỏ nhạt */
+    border-left: 4px solid #ef4444; /* Gạch đỏ bên trái */
+}
+
+.discipline-log-item.merit {
+    background-color: #dcfce7; /* Nền xanh nhạt */
+    border-left: 4px solid #22c55e; /* Gạch xanh bên trái */
+}
+
+.discipline-log-item .log-icon {
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.discipline-log-item.violation .log-icon {
+    color: #ef4444;
+}
+
+.discipline-log-item.merit .log-icon {
+    color: #22c55e;
+}
+
+.discipline-log-item .log-details {
+    flex-grow: 1;
+}
+
+.discipline-log-item .log-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.discipline-log-item .log-student-name {
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.discipline-log-item .log-date {
+    font-size: 0.75rem;
+    color: #6b7280;
+}
+
+.discipline-log-item .log-description {
+    font-size: 0.875rem;
+    color: #4b5563;
+}
