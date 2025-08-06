@@ -1,17 +1,20 @@
 // Khai báo biến toàn cục
 let studentsData = [];
+let disciplineLog = []; // <-- DÒNG MỚI
+let academicChart, attendanceChart, distributionChart, disciplineChart;
 let academicChart, attendanceChart, distributionChart, disciplineChart;
 
 // --- KHỞI TẠO KHI TẢI TRANG ---
 document.addEventListener('DOMContentLoaded', function() {
     loadStudentsFromStorage();
+    loadDisciplineLogFromStorage(); // <-- DÒNG MỚI
     initializeReports();
     initializeStudentForm();
-    initializeExcelImporter(); // <-- DÒNG MỚI
+    initializeExcelImporter();
+    initializeDisciplineTab(); // <-- DÒNG MỚI
     renderStudentList();
     setDefaultDates();
 });
-
 // --- QUẢN LÝ DỮ LIỆU HỌC SINH ---
 
 function loadStudentsFromStorage() {
@@ -33,6 +36,7 @@ function refreshAllData() {
     renderStudentList();
     loadReportData();
     populateIndividualStudentSelect();
+    populateDisciplineStudentSelect(); // <--- THÊM DÒNG NÀY VÀO ĐÂY
 }
 
 // --- TAB DANH SÁCH HỌC SINH ---
@@ -131,6 +135,127 @@ function initializeExcelImporter() {
         };
         reader.readAsArrayBuffer(file);
     });
+}
+// MỚI: Các hàm cho Tab Nề Nếp
+function initializeDisciplineTab() {
+    populateDisciplineStudentSelect();
+    renderDisciplineLog();
+    document.getElementById('discipline-date').valueAsDate = new Date(); // Mặc định ngày hiện tại
+
+    const form = document.getElementById('discipline-form');
+    form.addEventListener('submit', function(event) {
+        event.preventDefault();
+
+        const studentId = parseInt(form['discipline-student-select'].value);
+        const recordType = form['record-type'].value;
+        const description = form['discipline-description'].value;
+        const points = parseFloat(form['discipline-points'].value);
+        const date = form['discipline-date'].value;
+
+        if (!studentId || !description || isNaN(points)) {
+            showSuccessToast('Vui lòng điền đầy đủ thông tin.', true);
+            return;
+        }
+
+        const student = studentsData.find(s => s.id === studentId);
+        if (!student) return;
+
+        // Cập nhật điểm nề nếp của học sinh
+        if (recordType === 'violation') {
+            student.disciplineScore = Math.max(0, student.disciplineScore - points);
+        } else {
+            student.disciplineScore = Math.min(10, student.disciplineScore + points); // Giới hạn điểm tối đa là 10
+        }
+
+        // Tạo một ghi nhận mới vào lịch sử
+        const logEntry = {
+            id: Date.now(),
+            studentId: student.id,
+            studentName: student.name,
+            type: recordType,
+            description: description,
+            points: recordType === 'violation' ? -points : +points,
+            date: date
+        };
+        disciplineLog.push(logEntry);
+
+        // Lưu trữ và làm mới giao diện
+        saveStudentsToStorage();
+        saveDisciplineLogToStorage();
+        renderDisciplineLog();
+        // Cập nhật lại các báo cáo khác nếu cần
+        if (document.getElementById('reports').classList.contains('hidden') === false) {
+             loadReportData();
+        }
+
+        form.reset();
+        document.getElementById('discipline-date').valueAsDate = new Date();
+        showSuccessToast('Đã lưu ghi nhận nề nếp thành công!');
+    });
+}
+
+function populateDisciplineStudentSelect() {
+    const select = document.getElementById('discipline-student-select');
+    select.innerHTML = '<option value="">-- Vui lòng chọn --</option>'; // Reset
+    studentsData.forEach(student => {
+        const option = document.createElement('option');
+        option.value = student.id;
+        option.textContent = `${student.name} (MHS: ${student.studentId})`;
+        select.appendChild(option);
+    });
+}
+
+function renderDisciplineLog() {
+    const container = document.getElementById('discipline-log-container');
+    container.innerHTML = '';
+
+    if (disciplineLog.length === 0) {
+        container.innerHTML = `<p class="text-gray-500 text-center">Chưa có ghi nhận nề nếp nào.</p>`;
+        return;
+    }
+
+    // Sắp xếp lịch sử theo ngày mới nhất lên đầu
+    const sortedLog = [...disciplineLog].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    sortedLog.forEach(log => {
+        const isViolation = log.type === 'violation';
+        const logEl = document.createElement('div');
+        logEl.className = `discipline-log-item ${log.type}`;
+
+        const iconClass = isViolation ? 'fa-exclamation-circle' : 'fa-star';
+        const pointsText = (log.points > 0 ? '+' : '') + log.points;
+
+        logEl.innerHTML = `
+            <div class="log-icon">
+                <i class="fas ${iconClass}"></i>
+            </div>
+            <div class="log-details">
+                <div class="log-header">
+                    <span class="log-student-name">${log.studentName}</span>
+                    <span class="log-date">${new Date(log.date).toLocaleDateString('vi-VN')}</span>
+                </div>
+                <p class="log-description">${log.description} (<span class="font-semibold">${pointsText} điểm</span>)</p>
+            </div>
+        `;
+        container.appendChild(logEl);
+    });
+}
+
+function loadDisciplineLogFromStorage() {
+    const savedLog = localStorage.getItem('disciplineLog');
+    disciplineLog = savedLog ? JSON.parse(savedLog) : [];
+}
+
+function saveDisciplineLogToStorage() {
+    localStorage.setItem('disciplineLog', JSON.stringify(disciplineLog));
+}
+
+// MỚI: Cập nhật hàm refreshAllData để điền lại dropdown
+function refreshAllData() {
+    renderStudentList();
+    loadReportData();
+    populateIndividualStudentSelect();
+    populateDisciplineStudentSelect(); // <--- DÒNG MỚI
 }
 function renderStudentList() {
     const container = document.getElementById('student-list-container');
@@ -408,4 +533,5 @@ function loadIndividualReport() {
 function getGradeClassification(average) { if (average >= 9) return 'Xuất sắc'; if (average >= 8) return 'Giỏi'; if (average >= 6.5) return 'Khá'; if (average >= 5) return 'Trung bình'; return 'Yếu'; }
 function createActionPlan(studentId, issueType) { showSuccessToast(`Đã tạo kế hoạch hành động cho vấn đề: ${issueType}`); }
 function updateReportData() { loadReportData(); showSuccessToast('Đã cập nhật dữ liệu báo cáo!'); }
+
 
